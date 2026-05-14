@@ -1,63 +1,64 @@
-//DECLARAÇÕES DOS ELEMENTOS HTML PARA O DOM 
+// DECLARAÇÕES DOS ELEMENTOS
 const videoElemento = document.getElementById("video");
 const botaoScanear = document.getElementById("btn-texto");
-const resultado = document.getElementById("saida")
+const resultado = document.getElementById("saida");
 const canvas = document.getElementById("canvas");
 
-//METODO LIGAR CÂMERA
-
-async function configurarCamera(){
-    try{
-        //solicita a permissão para acessar a camera do usuário
+async function configurarCamera() {
+    try {
         const midia = await navigator.mediaDevices.getUserMedia({
-            //habilita a camera traseira do celular
-            video:{facingMode: "environment"},
-            audio:false
-        })
-        //atribui o fluxo da camera ao elemento de video para visualizar
+            // Corrigido "enviroment" para "environment"
+            video: { facingMode: "environment" }, 
+            audio: false
+        });
         videoElemento.srcObject = midia;
-
-    }catch(erro){
-        resultado.innerText = "Erro ao acessar a camera", erro;
+        //garantir que o vídeo comece a tocar
+        videoElemento.play();
+    } catch (erro) {
+        resultado.innerText = "Erro ao acessar a câmera: " + erro.message;
     }
 }
 
-//executa a função para habilitar camera
 configurarCamera();
-
-//Capturar e ler o texto
-botaoScanear.onclick = async() => {
-    //Desativa o botao para evitar multiplos cliques
+botaoScanear.onclick = async () => {
     botaoScanear.disabled = true;
-    resultado.innerText = "Fazendo a leitura.. Aguarde";
+    resultado.innerText = "Fazendo a leitura... aguarde";
 
-    //captura a imagem(foto)
     const contexto = canvas.getContext("2d");
-    
-    //Ajusta o tamanho do canvas interno para ser igual ao do video
+
+    // Ajusta o tamanho do canvas para o tamanho real do vídeo
     canvas.width = videoElemento.videoWidth;
-    canvas.heigth = videoElemento.videoHeigth;
+    canvas.height = videoElemento.videoHeight;
 
+    // Limpa e garante que a orientação seja a padrão (não espelhada)
+    contexto.setTransform(1, 0, 0, 1, 0, 0);
+    
+    // Se você notar que o Tesseract está recebendo a imagem invertida, 
+    // você pode descomentar as duas linhas abaixo para inverter o Canvas manualmente:
+    /*
+    contexto.translate(canvas.width, 0);
+    contexto.scale(-1, 1);
+    */
 
-    //desenha o frame atual
-    //do video dentro do canvas(tira a foto)
-    contexto.drawImage(videoElemento,0,0,canvas,canvas.heigth);
+    // Aplica os filtros para melhorar o OCR
+    contexto.filter = 'contrast(1.2) grayscale(1)';
 
-    //processando com a api Tesseract
-    try{
-        //função do tesseract
-        const {data:{text}} = await Tesseract.recognize(
-            canvas, // a imagem que acabou de capturar
-            'por', //idioma em portugues
-            {longer: m => console.log(m)} // mostra no log
-        )
-        resultado.innerText = text.trim().length > 0 ? text : "Não foi possivel identificar o texto";
+    // Desenha o vídeo no canvas
+    contexto.drawImage(videoElemento, 0, 0, canvas.width, canvas.height);
 
-    }catch(erro){
-        //resultado caso apresente um erro
-        resultado.innerText = "Erro no processamento", erro.message;
-    }finally{
-        //habilita o botao para uma nova leitura
+    try {
+        const { data: { text } } = await Tesseract.recognize(
+            canvas,
+            'por'
+        );
+        
+        const textoFinal = text.trim();
+        resultado.innerText = textoFinal.length > 0 ? textoFinal : "Não foi possível identificar o texto";
+
+    } catch (erro) {
+        console.error(erro);
+        resultado.innerText = "Erro no processamento: " + erro.message;
+    } finally {
         botaoScanear.disabled = false;
     }
-}
+};
